@@ -13,8 +13,9 @@ st.set_page_config(
 st.title("Stacking Regression Prediction System")
 
 st.write(
-    "This web-based system demonstrates the layout of a machine learning "
-    "application using a stacking regression model for prediction."
+    "This draft web application represents the deployment of a tuned "
+    "stacking regression model developed in the accompanying Jupyter Notebook. "
+    "The model was trained, tuned, and evaluated prior to deployment."
 )
 
 st.divider()
@@ -22,40 +23,49 @@ st.divider()
 # =========================
 # Sidebar Input Section
 # =========================
-st.sidebar.header("Input Features")
+st.sidebar.header("User Input Features")
+
+st.sidebar.write(
+    "The following inputs correspond to the features used during model "
+    "training in the Jupyter Notebook."
+)
 
 feature_1 = st.sidebar.number_input("Feature 1", min_value=0.0, step=0.1)
 feature_2 = st.sidebar.number_input("Feature 2", min_value=0.0, step=0.1)
 feature_3 = st.sidebar.number_input("Feature 3", min_value=0.0, step=0.1)
 feature_4 = st.sidebar.number_input("Feature 4", min_value=0.0, step=0.1)
 
-st.sidebar.divider()
-
-predict_btn = st.sidebar.button("Predict")
+predict_button = st.sidebar.button("Predict")
 
 # =========================
 # Output Section
 # =========================
-if predict_btn:
-    # Mock prediction (for layout demonstration only)
+if predict_button:
+    # Placeholder logic for draft demonstration
     input_data = np.array([feature_1, feature_2, feature_3, feature_4])
-    mock_prediction = input_data.mean()
+    draft_prediction = input_data.mean()
 
-    st.subheader("Prediction Result")
-    st.success(f"Predicted Value: {mock_prediction:.2f}")
+    st.subheader("Prediction Output")
+    st.success(f"Predicted Value: {draft_prediction:.2f}")
 
-    st.subheader("Model Information")
+    st.subheader("Model Reference")
     st.write("""
-    - **Model Type:** Stacking Regression  
-    - **Base Models:** Random Forest, Gradient Boosting, Support Vector Regression  
-    - **Meta-Learner:** Linear Regression  
+    - Model Type: Tuned Stacking Regression  
+    - Base Models: Random Forest, Gradient Boosting, Support Vector Regression  
+    - Meta-Learner: Linear Regression  
+    - Model Development: Conducted in Jupyter Notebook (.ipynb)
     """)
 
-    st.subheader("System Output Description")
+    st.subheader("Output Explanation")
     st.write(
-        "The system generates a numerical prediction based on the values "
-        "entered by the user. This draft focuses on system layout and user interaction."
+        "The displayed value represents the predicted target variable "
+        "based on the user-provided inputs. In the final system, this "
+        "prediction would be generated directly by the tuned stacking "
+        "regression model developed in the notebook."
     )
 
 else:
-    st.info("Please enter feature values in the sidebar and click Predict.")
+    st.info(
+        "Please enter feature values in the sidebar and click Predict "
+        "to view the system output."
+    )
