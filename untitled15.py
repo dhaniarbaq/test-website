@@ -36,17 +36,11 @@ st.write("Predicting childhood mortality rates in Malaysia using Socio-Economic 
 def load_and_clean_data():
     if os.path.exists("mergednew.csv"):
         df = pd.read_csv("mergednew.csv")
-        # Target based on document: 'rate'
         df = df.dropna(subset=['rate'])
-        
-        # Fill numeric NaNs with Median to prevent ValueError
         num_cols = df.select_dtypes(include=[np.number]).columns
         df[num_cols] = df[num_cols].fillna(df[num_cols].median())
-        
-        # Fill categorical NaNs with 'Unknown'
         cat_cols = df.select_dtypes(include=['object']).columns
         df[cat_cols] = df[cat_cols].fillna('Unknown')
-        
         return df
     return None
 
@@ -68,7 +62,14 @@ if menu == "Dataset Overview":
     if df_clean is not None:
         st.write("The dataset has been automatically cleaned of missing values for modeling.")
         st.dataframe(df_clean.head())
-        st.write(f"Total Records: {len(df_clean)}")
+        
+        # Adding Statistic Summary for Report Reference
+        st.subheader("Statistical Benchmarks for Classification")
+        stats_df = pd.DataFrame({
+            "Metric": ["Average Rate (Mean)", "Standard Deviation", "Minimum Rate", "Maximum Rate"],
+            "Value": [df_clean['rate'].mean(), df_clean['rate'].std(), df_clean['rate'].min(), df_clean['rate'].max()]
+        })
+        st.table(stats_df)
         
         st.subheader("Correlation Heatmap")
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -85,8 +86,6 @@ elif menu == "Model Development":
     if df_clean is not None:
         features = ['state', 'type', 'sex', 'piped_water', 'sanitation', 'electricity', 'income_mean', 'gini', 'poverty_absolute', 'cpi']
         target = 'rate'
-        
-        st.info(f"Target: {target} | Features: {len(features)}")
         
         model_choice = st.selectbox("Select Model", [
             "Polynomial Regression", "Decision Tree", 
@@ -106,7 +105,6 @@ elif menu == "Model Development":
 
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X)
-
             X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
             if model_choice == "Polynomial Regression":
@@ -127,7 +125,6 @@ elif menu == "Model Development":
                 model = RandomForestRegressor(n_estimators=100) if "Random" in model_choice else DecisionTreeRegressor()
 
             model.fit(X_train, y_train)
-
             joblib.dump(model, "model.pkl")
             joblib.dump(scaler, "scaler.pkl")
             joblib.dump(encoders, "encoders.pkl")
@@ -148,18 +145,15 @@ elif menu == "Model Evaluation":
 
         X_eval = df_clean[features].copy()
         y_true = df_clean['rate']
-
         for col, le in encoders.items():
             X_eval[col] = le.transform(X_eval[col].astype(str))
 
         X_scaled = scaler.transform(X_eval)
-
         if st.session_state.get('model_name') == "Polynomial Regression":
             poly = joblib.load("poly_transformer.pkl")
             X_scaled = poly.transform(X_scaled)
 
         y_pred = model.predict(X_scaled)
-
         c1, c2, c3 = st.columns(3)
         c1.metric("R² Score", f"{r2_score(y_true, y_pred):.4f}")
         c2.metric("RMSE", f"{np.sqrt(mean_squared_error(y_true, y_pred)):.4f}")
@@ -174,7 +168,7 @@ elif menu == "Model Evaluation":
         st.warning("Train a model first.")
 
 # --------------------------------
-# 4. Model Deployment
+# 4. Model Deployment (Updated with Insights)
 # --------------------------------
 elif menu == "Model Deployment":
     st.header("Predict Child Health Vulnerability")
@@ -201,8 +195,51 @@ elif menu == "Model Deployment":
                 poly = joblib.load("poly_transformer.pkl")
                 final_in = poly.transform(final_in)
             
-            res = model.predict(final_in)
-            # SET RATE TO 2 DECIMAL PLACES HERE:
-            st.success(f"Predicted Early Childhood Mortality Rate: {res[0]:.2f}")
+            res = model.predict(final_in)[0]
+            
+            # Prediction Success Message
+            st.success(f"### Predicted Early Childhood Mortality Rate: {res:.2f}")
+
+            # CALCULATING BENCHMARKS
+            avg_rate = df_clean['rate'].mean()
+            std_dev = df_clean['rate'].std()
+
+            st.divider()
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                st.subheader("📊 Vulnerability Classification")
+                # Using Standard Deviation to define "Average"
+                if res < (avg_rate - 0.5 * std_dev):
+                    st.info("Category: **Lower than Average Vulnerability**")
+                    st.write("This prediction indicates a relatively safe health outlook compared to historical national trends.")
+                elif res > (avg_rate + 0.5 * std_dev):
+                    st.error("Category: **Higher than Average Vulnerability**")
+                    st.write("This prediction signifies high child health risks. Targeted intervention is strongly advised.")
+                else:
+                    st.warning("Category: **Close to National Average**")
+                    st.write("The predicted vulnerability is typical for current Malaysian socioeconomic conditions.")
+
+            with col_right:
+                st.subheader("💡 Strategic Recommendations")
+                if res < (avg_rate - 0.5 * std_dev):
+                    st.write("- **Maintain Success:** Continue current infrastructure support levels.")
+                    st.write("- **Knowledge Sharing:** Analyze local factors to replicate success in other states.")
+                elif res > (avg_rate + 0.5 * std_dev):
+                    st.write("- **Infrastructure Priority:** Improve sanitation and piped water access immediately.")
+                    st.write("- **Social Safety Nets:** Increase financial aid for low-income households in this area.")
+                else:
+                    st.write("- **Preventive Care:** Focus on improving income equality (Gini) to prevent risk increases.")
+                    st.write("- **Monitor CPI:** Keep a close watch on cost-of-living impacts on local households.")
+
+            # Visualization
+            st.subheader("📈 Prediction Positioning in National Distribution")
+            fig, ax = plt.subplots(figsize=(10, 3))
+            sns.kdeplot(df_clean['rate'], fill=True, color="skyblue", label="National Historical Distribution")
+            plt.axvline(res, color="red", linestyle="--", label="This Prediction", linewidth=2)
+            plt.axvline(avg_rate, color="green", linestyle="-", label="National Average", linewidth=2)
+            plt.xlabel("Mortality Rate")
+            plt.legend()
+            st.pyplot(fig)
     else:
         st.warning("Train a model first.")
