@@ -83,7 +83,6 @@ if menu == "Dataset Overview":
 elif menu == "Model Development":
     st.header("Model Development")
     if df_clean is not None:
-        # Features defined in report
         features = ['state', 'type', 'sex', 'piped_water', 'sanitation', 'electricity', 'income_mean', 'gini', 'poverty_absolute', 'cpi']
         target = 'rate'
         
@@ -99,7 +98,6 @@ elif menu == "Model Development":
             X = df_clean[features].copy()
             y = df_clean[target]
 
-            # Encoding Categorical
             encoders = {}
             for col in ['state', 'type', 'sex']:
                 le = LabelEncoder()
@@ -111,32 +109,25 @@ elif menu == "Model Development":
 
             X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-            # Model Selection
             if model_choice == "Polynomial Regression":
                 poly = PolynomialFeatures(degree=2)
                 X_train = poly.fit_transform(X_train)
                 model = LinearRegression()
                 joblib.dump(poly, "poly_transformer.pkl")
-            
             elif model_choice == "Decision Tree":
                 model = DecisionTreeRegressor(max_depth=10)
-            
             elif model_choice == "Random Forest (Tuned)":
                 model = RandomForestRegressor(n_estimators=200, max_depth=15, random_state=42)
-            
             elif model_choice == "XGBoost (Tuned)" and XGB_AVAILABLE:
                 model = XGBRegressor(n_estimators=200, learning_rate=0.05)
-            
             elif model_choice == "Stacking Regressor":
                 base = [('rf', RandomForestRegressor(n_estimators=100)), ('dt', DecisionTreeRegressor())]
                 model = StackingRegressor(estimators=base, final_estimator=LinearRegression())
-            
-            else: # Defaults for untuned
+            else:
                 model = RandomForestRegressor(n_estimators=100) if "Random" in model_choice else DecisionTreeRegressor()
 
             model.fit(X_train, y_train)
 
-            # Save everything
             joblib.dump(model, "model.pkl")
             joblib.dump(scaler, "scaler.pkl")
             joblib.dump(encoders, "encoders.pkl")
@@ -155,7 +146,6 @@ elif menu == "Model Evaluation":
         encoders = joblib.load("encoders.pkl")
         features = joblib.load("feature_names.pkl")
 
-        # Prepare evaluation data (already cleaned in df_clean)
         X_eval = df_clean[features].copy()
         y_true = df_clean['rate']
 
@@ -164,7 +154,6 @@ elif menu == "Model Evaluation":
 
         X_scaled = scaler.transform(X_eval)
 
-        # Handle Polynomial Evaluation Crash
         if st.session_state.get('model_name') == "Polynomial Regression":
             poly = joblib.load("poly_transformer.pkl")
             X_scaled = poly.transform(X_scaled)
@@ -176,7 +165,6 @@ elif menu == "Model Evaluation":
         c2.metric("RMSE", f"{np.sqrt(mean_squared_error(y_true, y_pred)):.4f}")
         c3.metric("MAE", f"{mean_absolute_error(y_true, y_pred):.4f}")
 
-        # Visuals
         fig, ax = plt.subplots()
         plt.scatter(y_true, y_pred, alpha=0.5)
         plt.plot([y_true.min(), y_true.max()], [y_true.min(), y_true.max()], 'r--')
@@ -214,6 +202,7 @@ elif menu == "Model Deployment":
                 final_in = poly.transform(final_in)
             
             res = model.predict(final_in)
-            st.success(f"Predicted Early Childhood Mortality Rate: {res[0]:.4f}")
+            # SET RATE TO 2 DECIMAL PLACES HERE:
+            st.success(f"Predicted Early Childhood Mortality Rate: {res[0]:.2f}")
     else:
         st.warning("Train a model first.")
