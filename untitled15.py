@@ -6,13 +6,20 @@ import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# ML Libraries
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures, LabelEncoder
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor, StackingRegressor
-from xgboost import XGBRegressor
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+
+# Try to import XGBoost, handle error if not installed
+try:
+    from xgboost import XGBRegressor
+    XGB_AVAILABLE = True
+except ImportError:
+    XGB_AVAILABLE = False
 
 # --------------------------------
 # Page Configuration
@@ -20,29 +27,44 @@ from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 st.set_page_config(page_title="Child Health Vulnerability Predictor", layout="wide")
 
 st.title("Child Health Vulnerability Prediction System")
-st.write("Predicting child mortality rates in Malaysia using advanced Regression models.")
+st.write("Predicting mortality rates in Malaysia based on socio-economic factors.")
 
 # --------------------------------
 # Session State Initialization
 # --------------------------------
 if "data" not in st.session_state:
-    st.session_state.data = None
+    # Auto-load the specific dataset if it exists in the repo
+    if os.path.exists("mergednew.csv"):
+        st.session_state.data = pd.read_csv("mergednew.csv")
+    else:
+        st.session_state.data = None
 
 menu = st.sidebar.radio(
     "System Menu",
-    ["Upload Data", "Model Development", "Model Evaluation", "Model Deployment"]
+    ["Dataset Overview", "Model Development", "Model Evaluation", "Model Deployment"]
 )
 
 # --------------------------------
-# 1. Upload Data
+# 1. Dataset Overview
 # --------------------------------
-if menu == "Upload Data":
-    st.header("Upload Dataset")
-    file = st.file_uploader("Upload CSV file", type=["csv"])
-    if file:
-        st.session_state.data = pd.read_csv(file)
-        st.success("Dataset uploaded successfully")
-        st.dataframe(st.session_state.data.head())
+if menu == "Dataset Overview":
+    st.header("Dataset Overview")
+    if st.session_state.data is not None:
+        df = st.session_state.data
+        st.write("### Raw Data Preview (mergednew.csv)")
+        st.dataframe(df.head())
+        
+        st.write("### Data Statistics")
+        st.write(df.describe())
+        
+        st.write("### Missing Values")
+        st.write(df.isnull().sum())
+    else:
+        st.warning("Dataset 'mergednew.csv' not found. Please upload it in the sidebar or include it in your GitHub folder.")
+        uploaded_file = st.file_uploader("Upload mergednew.csv", type=["csv"])
+        if uploaded_file:
+            st.session_state.data = pd.read_csv(uploaded_file)
+            st.rerun()
 
 # --------------------------------
 # 2. Model Development
@@ -51,30 +73,49 @@ elif menu == "Model Development":
     st.header("Model Development")
 
     if st.session_state.data is None:
-        st.warning("Please upload the dataset first.")
+        st.warning("Please ensure the dataset is loaded first.")
     else:
-        df = st.session_state.data
+        df = st.session_state.data.copy()
         
-        # Target based on document: 'rate' (Early childhood mortality rate)
-        target = st.selectbox("Select target column", df.columns, index=list(df.columns).get('rate', 0))
+        # Preprocessing: The report implies using socio-economic features to predict 'rate'
+        target = "rate"
         
-        model_choice = st.selectbox(
-            "Select Regression Model",
-            [
-                "Polynomial Regression", 
-                "Decision Tree", 
-                "Random Forest (Untuned)", 
-                "Random Forest (Tuned)", 
-                "XGBoost (Untuned)", 
-                "XGBoost (Tuned)", 
-                "Stacking Regressor"
-            ]
-        )
+        # 1. Drop rows where target is NaN
+        df = df.dropna(subset=[target])
+        
+        # 2. Identify Features
+        cat_cols = ['state', 'type', 'sex']
+        num_cols = ['piped_water', 'sanitation', 'electricity', 'income_mean', 'gini', 'poverty_absolute', 'cpi']
+        
+        # 3. Simple Cleaning: Fill numeric NaNs with median
+        for col in num_cols:
+            df[col] = df[col].fillna(df[col].median())
+        
+        # 4. Encoding Categorical
+        encoders = {}
+        for col in cat_cols:
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col].astype(str))
+            encoders[col] = le
+            
+        st.info(f"Target: **{target}** | Features: {cat_cols + num_cols}")
+
+        model_list = [
+            "Polynomial Regression", 
+            "Decision Tree", 
+            "Random Forest (Untuned)", 
+            "Random Forest (Tuned)", 
+            "Stacking Regressor"
+        ]
+        if XGB_AVAILABLE:
+            model_list.extend(["XGBoost (Untuned)", "XGBoost (Tuned)"])
+        else:
+            st.error("XGBoost is not installed. Please add 'xgboost' to your requirements.txt")
+
+        model_choice = st.selectbox("Select Regression Model", model_list)
 
         if st.button("Train Model"):
-            # Select features as identified in Chapter 2.3 of the report
-            # Exclude non-numeric or date columns not used in modeling
-            X = df.drop(columns=[target]).select_dtypes(include=[np.number])
+            X = df[cat_cols + num_cols]
             y = df[target]
 
             scaler = StandardScaler()
@@ -84,121 +125,119 @@ elif menu == "Model Development":
                 X_scaled, y, test_size=0.2, random_state=42
             )
 
-            # Model Selection Logic
+            # Model Logic
             if model_choice == "Polynomial Regression":
                 poly = PolynomialFeatures(degree=2)
-                X_train_poly = poly.fit_transform(X_train)
+                X_train_p = poly.fit_transform(X_train)
                 model = LinearRegression()
-                model.fit(X_train_poly, y_train)
+                model.fit(X_train_p, y_train)
                 joblib.dump(poly, "poly_transformer.pkl")
             
             elif model_choice == "Decision Tree":
-                model = DecisionTreeRegressor(random_state=42)
+                model = DecisionTreeRegressor(max_depth=10, random_state=42)
                 model.fit(X_train, y_train)
 
             elif model_choice == "Random Forest (Untuned)":
-                model = RandomForestRegressor(random_state=42)
+                model = RandomForestRegressor(n_estimators=100, random_state=42)
                 model.fit(X_train, y_train)
 
             elif model_choice == "Random Forest (Tuned)":
-                # Example hyperparameters based on report findings
-                model = RandomForestRegressor(n_estimators=200, max_depth=10, random_state=42)
+                model = RandomForestRegressor(n_estimators=200, max_depth=15, min_samples_split=5, random_state=42)
                 model.fit(X_train, y_train)
 
             elif model_choice == "XGBoost (Untuned)":
-                model = XGBRegressor(random_state=42)
+                model = XGBRegressor(n_estimators=100, random_state=42)
                 model.fit(X_train, y_train)
 
             elif model_choice == "XGBoost (Tuned)":
-                model = XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=5, random_state=42)
+                model = XGBRegressor(n_estimators=200, learning_rate=0.05, max_depth=6, random_state=42)
                 model.fit(X_train, y_train)
 
             elif model_choice == "Stacking Regressor":
-                base_models = [
-                    ('rf', RandomForestRegressor(n_estimators=100, random_state=42)),
-                    ('xgb', XGBRegressor(random_state=42))
-                ]
-                model = StackingRegressor(estimators=base_models, final_estimator=LinearRegression())
+                base = [('rf', RandomForestRegressor(n_estimators=50)), ('dt', DecisionTreeRegressor())]
+                model = StackingRegressor(estimators=base, final_estimator=LinearRegression())
                 model.fit(X_train, y_train)
 
-            # Save model and artifacts
+            # Save
             joblib.dump(model, "model.pkl")
             joblib.dump(scaler, "scaler.pkl")
-            joblib.dump(list(X.columns), "features.pkl")
+            joblib.dump(encoders, "encoders.pkl")
+            joblib.dump(cat_cols + num_cols, "feature_names.pkl")
             st.session_state.model_name = model_choice
             
-            st.success(f"{model_choice} trained successfully!")
+            st.success(f"{model_choice} Trained Successfully!")
 
 # --------------------------------
 # 3. Model Evaluation
 # --------------------------------
 elif menu == "Model Evaluation":
-    st.header("Model Evaluation Results")
-
+    st.header("Evaluation Results")
     if not os.path.exists("model.pkl"):
         st.warning("Please train a model first.")
     else:
         model = joblib.load("model.pkl")
         scaler = joblib.load("scaler.pkl")
-        features = joblib.load("features.pkl")
-        df = st.session_state.data
+        feature_names = joblib.load("feature_names.pkl")
         
-        # Evaluation using full dataset for consistency with report visuals
-        X = df[features]
-        y = df['rate']
+        # Evaluate on the processed dataset
+        df = st.session_state.data.dropna(subset=['rate'])
+        X = df[feature_names].copy()
         
-        X_eval = scaler.transform(X)
-        
-        # Special handling for Polynomial
+        # Re-apply encoding for evaluation
+        encoders = joblib.load("encoders.pkl")
+        for col, le in encoders.items():
+            X[col] = le.transform(X[col].astype(str))
+            
+        X_scaled = scaler.transform(X)
         if st.session_state.model_name == "Polynomial Regression":
             poly = joblib.load("poly_transformer.pkl")
-            X_eval = poly.transform(X_eval)
+            X_scaled = poly.transform(X_scaled)
 
-        y_pred = model.predict(X_eval)
+        y_true = df['rate']
+        y_pred = model.predict(X_scaled)
 
-        # Metrics [cite: 341, 345, 346]
         col1, col2, col3 = st.columns(3)
-        col1.metric("R-Squared (R2)", f"{r2_score(y, y_pred):.4f}")
-        col2.metric("RMSE", f"{np.sqrt(mean_squared_error(y, y_pred)):.4f}")
-        col3.metric("MAE", f"{mean_absolute_error(y, y_pred):.4f}")
+        col1.metric("R² Score", f"{r2_score(y_true, y_pred):.4f}")
+        col2.metric("RMSE", f"{np.sqrt(mean_squared_error(y_true, y_pred)):.4f}")
+        col3.metric("MAE", f"{mean_absolute_error(y_true, y_pred):.4f}")
 
-        # Residual Plot [cite: 322, 336]
-        st.subheader("Residual Plot")
+        # Prediction Plot
         fig, ax = plt.subplots()
-        sns.residplot(x=y, y=y_pred, lowess=True, color="g")
-        plt.xlabel("Actual Mortality Rate")
-        plt.ylabel("Residuals")
+        plt.scatter(y_true, y_pred, alpha=0.3, color='blue')
+        plt.plot([y_true.min(), y_true.max()], [y_true.min(), y_true.max()], 'r--')
+        plt.xlabel("Actual Rate")
+        plt.ylabel("Predicted Rate")
         st.pyplot(fig)
 
 # --------------------------------
 # 4. Model Deployment
 # --------------------------------
 elif menu == "Model Deployment":
-    st.header("Interactive Prediction Dashboard")
-
+    st.header("Predict Child Mortality Rate")
     if not os.path.exists("model.pkl"):
-        st.warning("Please train a model first.")
+        st.warning("Train a model first.")
     else:
         model = joblib.load("model.pkl")
         scaler = joblib.load("scaler.pkl")
-        features = joblib.load("features.pkl")
+        encoders = joblib.load("encoders.pkl")
+        feature_names = joblib.load("feature_names.pkl")
 
-        st.info(f"Active Model: {st.session_state.get('model_name', 'Unknown')}")
-        
-        # User input for features [cite: 92]
-        input_values = []
+        input_data = []
         cols = st.columns(2)
-        for i, feat in enumerate(features):
+        for i, feat in enumerate(feature_names):
             with cols[i % 2]:
-                val = st.number_input(f"Enter {feat}", value=0.0)
-                input_values.append(val)
+                if feat in encoders:
+                    val = st.selectbox(f"Select {feat}", encoders[feat].classes_)
+                    input_data.append(encoders[feat].transform([val])[0])
+                else:
+                    val = st.number_input(f"Enter {feat}", value=0.0)
+                    input_data.append(val)
 
-        if st.button("Predict Vulnerability Rate"):
-            test_input = scaler.transform([input_values])
-            
-            if st.session_state.model_name == "Polynomial Regression":
+        if st.button("Predict"):
+            final_input = scaler.transform([input_data])
+            if st.session_state.get('model_name') == "Polynomial Regression":
                 poly = joblib.load("poly_transformer.pkl")
-                test_input = poly.transform(test_input)
-                
-            prediction = model.predict(test_input)
-            st.success(f"Predicted Early Childhood Mortality Rate: {prediction[0]:.4f}")
+                final_input = poly.transform(final_input)
+            
+            res = model.predict(final_input)
+            st.success(f"The Predicted Mortality Rate is: {res[0]:.4f}")
