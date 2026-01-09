@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import joblib
 import os
 import matplotlib.pyplot as plt
@@ -9,6 +8,8 @@ import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 # --------------------------------
@@ -18,6 +19,15 @@ st.set_page_config(page_title="ML Streamlit System", layout="wide")
 
 st.title("End to End Machine Learning System")
 st.write("Model Development, Evaluation, and Deployment using Streamlit")
+
+# --------------------------------
+# Session State Initialization
+# --------------------------------
+if "data" not in st.session_state:
+    st.session_state.data = None
+
+if "model_name" not in st.session_state:
+    st.session_state.model_name = None
 
 menu = st.sidebar.radio(
     "System Menu",
@@ -32,9 +42,9 @@ if menu == "Upload Data":
 
     file = st.file_uploader("Upload CSV file", type=["csv"])
     if file:
-        df = pd.read_csv(file)
-        st.success("Dataset loaded successfully")
-        st.dataframe(df.head())
+        st.session_state.data = pd.read_csv(file)
+        st.success("Dataset uploaded and stored successfully")
+        st.dataframe(st.session_state.data.head())
 
 # --------------------------------
 # Model Training
@@ -42,30 +52,44 @@ if menu == "Upload Data":
 elif menu == "Model Training":
     st.header("Model Development")
 
-    file = st.file_uploader("Upload Training Dataset", type=["csv"])
-    target = st.text_input("Enter target column name")
+    if st.session_state.data is None:
+        st.warning("Please upload the dataset first.")
+    else:
+        df = st.session_state.data
+        target = st.text_input("Enter target column name")
 
-    if st.button("Train Model"):
-        if file and target:
-            df = pd.read_csv(file)
+        model_choice = st.selectbox(
+            "Select Machine Learning Model",
+            ["Logistic Regression", "Decision Tree", "Random Forest"]
+        )
 
-            X = df.drop(columns=[target])
-            y = df[target]
+        if st.button("Train Model"):
+            if target:
+                X = df.drop(columns=[target])
+                y = df[target]
 
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(X)
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(X)
 
-            X_train, X_test, y_train, y_test = train_test_split(
-                X_scaled, y, test_size=0.2, random_state=42
-            )
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X_scaled, y, test_size=0.2, random_state=42
+                )
 
-            model = LogisticRegression()
-            model.fit(X_train, y_train)
+                if model_choice == "Logistic Regression":
+                    model = LogisticRegression()
+                elif model_choice == "Decision Tree":
+                    model = DecisionTreeClassifier()
+                else:
+                    model = RandomForestClassifier()
 
-            joblib.dump(model, "model.pkl")
-            joblib.dump(scaler, "scaler.pkl")
+                model.fit(X_train, y_train)
 
-            st.success("Model trained and saved successfully")
+                joblib.dump(model, "model.pkl")
+                joblib.dump(scaler, "scaler.pkl")
+
+                st.session_state.model_name = model_choice
+
+                st.success(f"{model_choice} trained and saved successfully")
 
 # --------------------------------
 # Model Evaluation
@@ -73,16 +97,16 @@ elif menu == "Model Training":
 elif menu == "Model Evaluation":
     st.header("Model Evaluation")
 
-    if not os.path.exists("model.pkl") or not os.path.exists("scaler.pkl"):
+    if st.session_state.data is None:
+        st.warning("Please upload the dataset first.")
+    elif not os.path.exists("model.pkl"):
         st.warning("Model not found. Please train the model first.")
     else:
-        file = st.file_uploader("Upload Evaluation Dataset", type=["csv"])
+        df = st.session_state.data
         target = st.text_input("Enter target column name")
 
         if st.button("Evaluate Model"):
-            if file and target:
-                df = pd.read_csv(file)
-
+            if target:
                 model = joblib.load("model.pkl")
                 scaler = joblib.load("scaler.pkl")
 
@@ -95,6 +119,8 @@ elif menu == "Model Evaluation":
                 accuracy = accuracy_score(y, y_pred)
                 cm = confusion_matrix(y, y_pred)
 
+                st.subheader("Evaluation Results")
+                st.write("Model Used:", st.session_state.model_name)
                 st.write("Accuracy:", accuracy)
 
                 fig, ax = plt.subplots()
@@ -107,13 +133,16 @@ elif menu == "Model Evaluation":
 elif menu == "Model Deployment":
     st.header("Model Deployment")
 
-    if not os.path.exists("model.pkl") or not os.path.exists("scaler.pkl"):
+    if st.session_state.data is None:
+        st.warning("Please upload the dataset first.")
+    elif not os.path.exists("model.pkl"):
         st.warning("Model not found. Please train the model first.")
     else:
         model = joblib.load("model.pkl")
         scaler = joblib.load("scaler.pkl")
 
-        st.write("Enter feature values for prediction")
+        st.write("Model Used:", st.session_state.model_name)
+        st.write("Enter feature values")
 
         feature_1 = st.number_input("Feature 1")
         feature_2 = st.number_input("Feature 2")
