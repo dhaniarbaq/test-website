@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -10,6 +11,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix
 
+# --------------------------------
+# Page Configuration
+# --------------------------------
 st.set_page_config(page_title="ML Streamlit System", layout="wide")
 
 st.title("End to End Machine Learning System")
@@ -17,12 +21,12 @@ st.write("Model Development, Evaluation, and Deployment using Streamlit")
 
 menu = st.sidebar.radio(
     "System Menu",
-    ["Upload Data", "Model Training", "Model Evaluation", "Prediction"]
+    ["Upload Data", "Model Training", "Model Evaluation", "Model Deployment"]
 )
 
-# -------------------------
+# --------------------------------
 # Upload Data
-# -------------------------
+# --------------------------------
 if menu == "Upload Data":
     st.header("Upload Dataset")
 
@@ -32,9 +36,9 @@ if menu == "Upload Data":
         st.success("Dataset loaded successfully")
         st.dataframe(df.head())
 
-# -------------------------
+# --------------------------------
 # Model Training
-# -------------------------
+# --------------------------------
 elif menu == "Model Training":
     st.header("Model Development")
 
@@ -63,52 +67,58 @@ elif menu == "Model Training":
 
             st.success("Model trained and saved successfully")
 
-# -------------------------
+# --------------------------------
 # Model Evaluation
-# -------------------------
+# --------------------------------
 elif menu == "Model Evaluation":
     st.header("Model Evaluation")
 
-    file = st.file_uploader("Upload Evaluation Dataset", type=["csv"])
-    target = st.text_input("Enter target column name")
+    if not os.path.exists("model.pkl") or not os.path.exists("scaler.pkl"):
+        st.warning("Model not found. Please train the model first.")
+    else:
+        file = st.file_uploader("Upload Evaluation Dataset", type=["csv"])
+        target = st.text_input("Enter target column name")
 
-    if st.button("Evaluate Model"):
-        if file and target:
-            df = pd.read_csv(file)
+        if st.button("Evaluate Model"):
+            if file and target:
+                df = pd.read_csv(file)
 
-            model = joblib.load("model.pkl")
-            scaler = joblib.load("scaler.pkl")
+                model = joblib.load("model.pkl")
+                scaler = joblib.load("scaler.pkl")
 
-            X = df.drop(columns=[target])
-            y = df[target]
+                X = df.drop(columns=[target])
+                y = df[target]
 
-            X_scaled = scaler.transform(X)
-            y_pred = model.predict(X_scaled)
+                X_scaled = scaler.transform(X)
+                y_pred = model.predict(X_scaled)
 
-            accuracy = accuracy_score(y, y_pred)
-            cm = confusion_matrix(y, y_pred)
+                accuracy = accuracy_score(y, y_pred)
+                cm = confusion_matrix(y, y_pred)
 
-            st.write("Accuracy:", accuracy)
+                st.write("Accuracy:", accuracy)
 
-            fig, ax = plt.subplots()
-            sns.heatmap(cm, annot=True, fmt="d", ax=ax)
-            st.pyplot(fig)
+                fig, ax = plt.subplots()
+                sns.heatmap(cm, annot=True, fmt="d", ax=ax)
+                st.pyplot(fig)
 
-# -------------------------
-# Prediction
-# -------------------------
-elif menu == "Prediction":
+# --------------------------------
+# Model Deployment
+# --------------------------------
+elif menu == "Model Deployment":
     st.header("Model Deployment")
 
-    model = joblib.load("model.pkl")
-    scaler = joblib.load("scaler.pkl")
+    if not os.path.exists("model.pkl") or not os.path.exists("scaler.pkl"):
+        st.warning("Model not found. Please train the model first.")
+    else:
+        model = joblib.load("model.pkl")
+        scaler = joblib.load("scaler.pkl")
 
-    st.write("Enter feature values")
+        st.write("Enter feature values for prediction")
 
-    feature_1 = st.number_input("Feature 1")
-    feature_2 = st.number_input("Feature 2")
+        feature_1 = st.number_input("Feature 1")
+        feature_2 = st.number_input("Feature 2")
 
-    if st.button("Predict"):
-        input_data = scaler.transform([[feature_1, feature_2]])
-        prediction = model.predict(input_data)
-        st.success(f"Prediction Result: {prediction[0]}")
+        if st.button("Predict"):
+            input_data = scaler.transform([[feature_1, feature_2]])
+            prediction = model.predict(input_data)
+            st.success(f"Prediction Result: {prediction[0]}")
