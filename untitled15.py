@@ -31,7 +31,7 @@ if "model_name" not in st.session_state:
 
 menu = st.sidebar.radio(
     "System Menu",
-    ["Upload Data", "Model Training", "Model Evaluation", "Model Deployment"]
+    ["Upload Data", "Model Development", "Model Evaluation", "Model Deployment"]
 )
 
 # --------------------------------
@@ -47,16 +47,20 @@ if menu == "Upload Data":
         st.dataframe(st.session_state.data.head())
 
 # --------------------------------
-# Model Training
+# Model Development
 # --------------------------------
-elif menu == "Model Training":
+elif menu == "Model Development":
     st.header("Model Development")
 
     if st.session_state.data is None:
         st.warning("Please upload the dataset first.")
     else:
         df = st.session_state.data
-        target = st.text_input("Enter target column name")
+
+        target = st.selectbox(
+            "Select target column",
+            df.columns
+        )
 
         model_choice = st.selectbox(
             "Select Machine Learning Model",
@@ -64,32 +68,31 @@ elif menu == "Model Training":
         )
 
         if st.button("Train Model"):
-            if target:
-                X = df.drop(columns=[target])
-                y = df[target]
+            X = df.drop(columns=[target])
+            y = df[target]
 
-                scaler = StandardScaler()
-                X_scaled = scaler.fit_transform(X)
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
 
-                X_train, X_test, y_train, y_test = train_test_split(
-                    X_scaled, y, test_size=0.2, random_state=42
-                )
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_scaled, y, test_size=0.2, random_state=42
+            )
 
-                if model_choice == "Logistic Regression":
-                    model = LogisticRegression()
-                elif model_choice == "Decision Tree":
-                    model = DecisionTreeClassifier()
-                else:
-                    model = RandomForestClassifier()
+            if model_choice == "Logistic Regression":
+                model = LogisticRegression()
+            elif model_choice == "Decision Tree":
+                model = DecisionTreeClassifier()
+            else:
+                model = RandomForestClassifier()
 
-                model.fit(X_train, y_train)
+            model.fit(X_train, y_train)
 
-                joblib.dump(model, "model.pkl")
-                joblib.dump(scaler, "scaler.pkl")
+            joblib.dump(model, "model.pkl")
+            joblib.dump(scaler, "scaler.pkl")
 
-                st.session_state.model_name = model_choice
+            st.session_state.model_name = model_choice
 
-                st.success(f"{model_choice} trained and saved successfully")
+            st.success(f"{model_choice} trained successfully using '{target}' as target column")
 
 # --------------------------------
 # Model Evaluation
@@ -103,29 +106,32 @@ elif menu == "Model Evaluation":
         st.warning("Model not found. Please train the model first.")
     else:
         df = st.session_state.data
-        target = st.text_input("Enter target column name")
+
+        target = st.selectbox(
+            "Select target column",
+            df.columns
+        )
 
         if st.button("Evaluate Model"):
-            if target:
-                model = joblib.load("model.pkl")
-                scaler = joblib.load("scaler.pkl")
+            model = joblib.load("model.pkl")
+            scaler = joblib.load("scaler.pkl")
 
-                X = df.drop(columns=[target])
-                y = df[target]
+            X = df.drop(columns=[target])
+            y = df[target]
 
-                X_scaled = scaler.transform(X)
-                y_pred = model.predict(X_scaled)
+            X_scaled = scaler.transform(X)
+            y_pred = model.predict(X_scaled)
 
-                accuracy = accuracy_score(y, y_pred)
-                cm = confusion_matrix(y, y_pred)
+            accuracy = accuracy_score(y, y_pred)
+            cm = confusion_matrix(y, y_pred)
 
-                st.subheader("Evaluation Results")
-                st.write("Model Used:", st.session_state.model_name)
-                st.write("Accuracy:", accuracy)
+            st.subheader("Evaluation Results")
+            st.write("Model Used:", st.session_state.model_name)
+            st.write("Accuracy:", accuracy)
 
-                fig, ax = plt.subplots()
-                sns.heatmap(cm, annot=True, fmt="d", ax=ax)
-                st.pyplot(fig)
+            fig, ax = plt.subplots()
+            sns.heatmap(cm, annot=True, fmt="d", ax=ax)
+            st.pyplot(fig)
 
 # --------------------------------
 # Model Deployment
@@ -138,16 +144,21 @@ elif menu == "Model Deployment":
     elif not os.path.exists("model.pkl"):
         st.warning("Model not found. Please train the model first.")
     else:
+        df = st.session_state.data
         model = joblib.load("model.pkl")
         scaler = joblib.load("scaler.pkl")
 
         st.write("Model Used:", st.session_state.model_name)
         st.write("Enter feature values")
 
-        feature_1 = st.number_input("Feature 1")
-        feature_2 = st.number_input("Feature 2")
+        feature_columns = df.drop(columns=[df.columns[-1]]).columns
+
+        input_values = []
+        for col in feature_columns:
+            value = st.number_input(f"{col}")
+            input_values.append(value)
 
         if st.button("Predict"):
-            input_data = scaler.transform([[feature_1, feature_2]])
+            input_data = scaler.transform([input_values])
             prediction = model.predict(input_data)
             st.success(f"Prediction Result: {prediction[0]}")
