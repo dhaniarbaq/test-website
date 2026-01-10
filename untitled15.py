@@ -60,15 +60,14 @@ if menu == "About this System":
     st.write("""
     This interactive Machine Learning system is designed to analyze and predict child health vulnerabilities, 
     specifically focused on Early Childhood Mortality Rates across various states in Malaysia. 
-    By integrating socio-economic indicators—such as household income, poverty levels, and infrastructure 
-    access—the system provides data-driven insights to support public health policy and intervention strategies.
+    By integrating socio-economic indicators. For example, household income, poverty levels, and infrastructure 
+    access. The system provides data-driven insights to support public health policy and intervention strategies.
     """)
     
     st.subheader("Methodology: Tuned Stacking Regressor")
     st.write("""
-    The system utilizes a **Tuned Stacking Regressor**, which is an ensemble learning technique. 
-    It functions by combining the predictive strengths of multiple 'base' models (Optimized Random Forest 
-    and Decision Trees) and using a 'meta-learner' (Linear Regression) to generate a final, highly 
+    The system utilizes a Tuned Stacking Regressor, which is an ensemble learning technique. 
+    It functions by combining the predictive strengths of multiple 'base' models and using Linear Regression to generate a final, highly 
     accurate estimation. This approach minimizes individual model biases and maximizes predictive stability.
     """)
     
