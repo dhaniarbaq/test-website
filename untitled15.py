@@ -66,8 +66,8 @@ if menu == "About this System":
     st.subheader("System Overview")
     st.write("""
     This advanced Machine Learning platform is engineered to predict Early Childhood Mortality Rates 
-    across Malaysia. By evaluating critical socio-economic indicators—including household income 
-    distribution, poverty absolute levels, and infrastructure accessibility (piped water and sanitation)—the 
+    across Malaysia. By evaluating critical socio-economic indicators which include household income 
+    distribution, poverty absolute levels, and infrastructure accessibility (piped water and sanitation). The 
     system provides high-precision vulnerability assessments to guide public health interventions.
     """)
     
